@@ -6,31 +6,38 @@ const { SECRET_KEY } = process.env;
 const stripe = Stripe(SECRET_KEY);
 
 const payment = async (req, res) => {
+  const { price, cardNo, expMonth, expYear, cvc } = req.body;
+  console.log(cardNo, expMonth, expYear, cvc);
+
+  if (!price || !cardNo || !expMonth || !expYear || !cvc) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
   try {
-    const { product } = req.body;
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'pkr',
-            product_data: {
-              name: product.name,
-            },
-            unit_amount: product.price * 100,
-          },
-          quantity: product.quantity,
-        },
-      ],
-      mode: 'payment',
-      success_url: 'http://localhost:3001/success',
-      cancel_url: 'http://localhost:3001/cancel',
+    // Create a payment method using the Stripe API
+    const paymentMethod = await stripe.paymentMethods.create({
+      type: 'card',
+      card: {
+        number: cardNo,
+        exp_month: expMonth,
+        exp_year: expYear,
+        cvc: cvc,
+      },
     });
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: price * 100,
+      currency: 'pkr',
+      payment_method: paymentMethod.id,
+      confirm: true,
+    });
+
+    console.log(paymentIntent);
+
     // Return a success response
     res.status(201).json({
       success: true,
       message: 'Payment succeeded',
-      paymentURL: session.url,
+      paymentURL: paymentIntent,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
